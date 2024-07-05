@@ -1,0 +1,495 @@
+local Fusion = {}
+do
+    local function Fusion_setproperty(instance, property, value)
+        instance[property] = value
+    end
+
+    Fusion.New = function(class)
+        return function(properties)
+            local instance = Instance.new(class)
+            for property, value in pairs(properties) do
+                if typeof(property) == "string" then
+                    Fusion_setproperty(instance, property, value)
+                elseif property == Fusion.Children then
+                    for _, child in pairs(value) do
+                        child.Parent = instance
+                    end
+                end
+            end
+            return instance
+        end
+    end
+
+    Fusion.Children = {}
+
+    Fusion.Computed = function(callback)
+        local bindable = Instance.new("BindableEvent")
+        local value = callback()
+        bindable.Event:Connect(function()
+            value = callback()
+        end)
+        return setmetatable({}, {
+            __index = function()
+                return value
+            end,
+            __newindex = function(_, _, newValue)
+                value = newValue
+                bindable:Fire()
+            end
+        })
+    end
+
+    Fusion.Value = function(initialValue)
+        local bindable = Instance.new("BindableEvent")
+        local value = initialValue
+        return setmetatable({}, {
+            __index = function()
+                return value
+            end,
+            __newindex = function(_, _, newValue)
+                value = newValue
+                bindable:Fire()
+            end
+        })
+    end
+
+    Fusion.OnEvent = function(eventName)
+        return function(callback)
+            return function(instance)
+                instance[eventName]:Connect(callback)
+            end
+        end
+    end
+end
+
+-- UI Library
+local UILibrary = {}
+
+function UILibrary:CreateWindow(title)
+    local windowVisible = Fusion.Value(true)
+
+    local function createUIComponents()
+        local tabContentVisible = Fusion.Value(true)
+        local sliderValue = Fusion.Value(0)
+        local toggleState = Fusion.Value(false)
+        local selectedItem = Fusion.Value("")
+
+        -- Create Tab Content
+        local tabContent = Fusion.New "Frame" {
+            Name = "MainTab_Content",
+            BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+            Size = UDim2.new(1, 0, 1, 0),
+            Visible = tabContentVisible,
+            [Fusion.Children] = {
+                Fusion.New "UIListLayout" {
+                    SortOrder = Enum.SortOrder.LayoutOrder,
+                    Padding = UDim.new(0, 10),
+                },
+                Fusion.New "UIPadding" {
+                    PaddingTop = UDim.new(0, 10),
+                    PaddingBottom = UDim.new(0, 10),
+                    PaddingLeft = UDim.new(0, 10),
+                    PaddingRight = UDim.new(0, 10),
+                },
+                -- Button
+                Fusion.New "TextButton" {
+                    Text = "Example Button",
+                    Font = Enum.Font.FredokaOne,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                    TextSize = 24,
+                    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                    Size = UDim2.new(1, 0, 0, 60),
+                    [Fusion.Children] = {
+                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                    },
+                    [Fusion.OnEvent "MouseButton1Click"] = function()
+                        print("Button clicked!")
+                    end,
+                },
+                -- Slider
+                Fusion.New "Frame" {
+                    Size = UDim2.new(1, 0, 0, 80),
+                    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                    [Fusion.Children] = {
+                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                        Fusion.New "TextLabel" {
+                            Text = "Example Slider",
+                            Font = Enum.Font.FredokaOne,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 24,
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(0.9, 0, 0.2, 0),
+                            Position = UDim2.new(0.05, 0, 0.1, 0),
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                        },
+                        Fusion.New "TextBox" {
+                            Text = "0",
+                            Font = Enum.Font.FredokaOne,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 24,
+                            BackgroundTransparency = 1,
+                            Position = UDim2.new(0.95, -50, 0.1, 0),
+                            Size = UDim2.new(0, 50, 0.2, 0),
+                            TextXAlignment = Enum.TextXAlignment.Right,
+                            ClearTextOnFocus = false,
+                            [Fusion.OnEvent "FocusLost"] = function(textBox)
+                                local value = tonumber(textBox.Text)
+                                if value then
+                                    sliderValue:set(value)
+                                    print("Slider value:", value)
+                                else
+                                    textBox.Text = "0"
+                                end
+                            end,
+                        },
+                        Fusion.New "Frame" {
+                            Name = "SliderBar",
+                            BackgroundColor3 = Color3.fromRGB(48, 48, 53),
+                            Position = UDim2.new(0.05, 0, 0.4, 0),
+                            Size = UDim2.new(0.9, 0, 0.3, 0),
+                            [Fusion.Children] = {
+                                Fusion.New "UICorner" { CornerRadius = UDim.new(0, 99) },
+                                Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                Fusion.New "Frame" {
+                                    Name = "SliderFill",
+                                    BackgroundColor3 = Color3.fromRGB(0, 71, 255),
+                                    Size = Fusion.Computed(function()
+                                        return UDim2.new(sliderValue:get() / 100, 0, 1, 0)
+                                    end),
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 99) },
+                                    },
+                                },
+                                Fusion.New "Frame" {
+                                    Name = "Slider",
+                                    BackgroundColor3 = Color3.fromRGB(0, 71, 255),
+                                    Size = UDim2.new(0, 20, 0, 20),
+                                    Position = Fusion.Computed(function()
+                                        return UDim2.new(sliderValue:get() / 100, -10, 0.5, -10)
+                                    end),
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(1, 0) },
+                                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                    },
+                                    [Fusion.OnEvent "InputBegan"] = function(input)
+                                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                            local dragging = true
+                                            local moveConnection, releaseConnection
+
+                                            local function moveSlider(input)
+                                                local posX = math.clamp((input.Position.X - SliderBar.AbsolutePosition.X) / SliderBar.AbsoluteSize.X, 0, 1)
+                                                local newValue = math.floor(posX * 100)
+                                                sliderValue:set(newValue)
+                                                print("Slider value:", newValue)
+                                            end
+
+                                            moveConnection = input.Changed:Connect(function(input)
+                                                if input.UserInputType == Enum.UserInputType.MouseMovement then
+                                                    moveSlider(input)
+                                                end
+                                            end)
+
+                                            releaseConnection = input.Ended:Connect(function(input)
+                                                if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                                    dragging = false
+                                                    moveConnection:Disconnect()
+                                                    releaseConnection:Disconnect()
+                                                end
+                                            end)
+                                        end
+                                    end,
+                                },
+                            },
+                        },
+                    },
+                },
+                -- Toggle
+                Fusion.New "Frame" {
+                    Size = UDim2.new(1, 0, 0, 60),
+                    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                    [Fusion.Children] = {
+                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                        Fusion.New "TextLabel" {
+                            Text = "Example Toggle",
+                            Font = Enum.Font.FredokaOne,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 24,
+                            BackgroundTransparency = 1,
+                            Position = UDim2.new(0.05, 0, 0.2, 0),
+                            Size = UDim2.new(0.9, 0, 0.6, 0),
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                        },
+                        Fusion.New "Frame" {
+                            Name = "ToggleBar",
+                            BackgroundColor3
+
+ = Color3.fromRGB(48, 48, 53),
+                            Position = UDim2.new(0.75, 0, 0.5, -15),
+                            Size = UDim2.new(0.2, 0, 0.5, 0),
+                            [Fusion.Children] = {
+                                Fusion.New "UICorner" { CornerRadius = UDim.new(0, 99) },
+                                Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                Fusion.New "Frame" {
+                                    Name = "Toggle",
+                                    BackgroundColor3 = Fusion.Computed(function()
+                                        return toggleState:get() and Color3.fromRGB(0, 71, 255) or Color3.fromRGB(35, 35, 35)
+                                    end),
+                                    Position = Fusion.Computed(function()
+                                        return toggleState:get() and UDim2.new(1, -37, 0.5, -18.5) or UDim2.new(0, 0, 0.5, -18.5)
+                                    end),
+                                    Size = UDim2.new(0, 37, 0, 37),
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(1, 0) },
+                                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                    },
+                                    [Fusion.OnEvent "InputBegan"] = function(input)
+                                        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                                            toggleState:set(not toggleState:get())
+                                            print("Toggle state:", toggleState:get())
+                                        end
+                                    end,
+                                },
+                            },
+                        },
+                    },
+                },
+                -- Dropdown
+                Fusion.New "Frame" {
+                    Size = UDim2.new(1, 0, 0, 60),
+                    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                    [Fusion.Children] = {
+                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                        Fusion.New "TextButton" {
+                            Text = "Example Dropdown",
+                            Font = Enum.Font.FredokaOne,
+                            TextColor3 = Color3.fromRGB(255, 255, 255),
+                            TextSize = 24,
+                            BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                            BackgroundTransparency = 1,
+                            BorderSizePixel = 0,
+                            Position = UDim2.new(0.0199999996, 0, 0.100000001, 0),
+                            Size = UDim2.new(0.980000019, 0, 0, 50),
+                            TextXAlignment = Enum.TextXAlignment.Left,
+                            [Fusion.Children] = {
+                                Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                            },
+                            [Fusion.OnEvent "MouseButton1Click"] = function()
+                                -- Toggle dropdown visibility
+                                local dropdownVisible = not selectedItem:get() ~= ""
+                                selectedItem:set(dropdownVisible and "" or "Example Option 1")
+                                print("Selected item:", selectedItem:get())
+                            end,
+                        },
+                        Fusion.New "Frame" {
+                            Name = "DropdownList",
+                            BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+                            ClipsDescendants = true,
+                            Position = UDim2.new(0.0199999996, 0, 0.800000012, 0),
+                            Size = UDim2.new(0.959999979, 0, 0, 150),
+                            Visible = Fusion.Computed(function()
+                                return selectedItem:get() ~= ""
+                            end),
+                            [Fusion.Children] = {
+                                Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                Fusion.New "TextBox" {
+                                    Name = "SearchBar",
+                                    BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+                                    Position = UDim2.new(0, 5, 0, 5),
+                                    Size = UDim2.new(1, -10, 0, 30),
+                                    Font = Enum.Font.FredokaOne,
+                                    PlaceholderText = "Search...",
+                                    Text = "",
+                                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                                    TextSize = 24,
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                    },
+                                },
+                                -- Dropdown Item
+                                Fusion.New "TextButton" {
+                                    Text = "Example Option 1",
+                                    Font = Enum.Font.FredokaOne,
+                                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                                    TextSize = 24,
+                                    BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+                                    Size = UDim2.new(1, -10, 0, 30),
+                                    TextXAlignment = Enum.TextXAlignment.Left,
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                    },
+                                    [Fusion.OnEvent "MouseButton1Click"] = function(button)
+                                        selectedItem:set(button.Text)
+                                        print("Selected item:", selectedItem:get())
+                                    end,
+                                },
+                                Fusion.New "TextButton" {
+                                    Text = "Example Option 2",
+                                    Font = Enum.Font.FredokaOne,
+                                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                                    TextSize = 24,
+                                    BackgroundColor3 = Color3.fromRGB(45, 45, 45),
+                                    Size = UDim2.new(1, -10, 0, 30),
+                                    TextXAlignment = Enum.TextXAlignment.Left,
+                                    [Fusion.Children] = {
+                                        Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                        Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                    },
+                                    [Fusion.OnEvent "MouseButton1Click"] = function(button)
+                                        selectedItem:set(button.Text)
+                                        print("Selected item:", selectedItem:get())
+                                    end,
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+        }
+
+        return tabContent
+    end
+
+    local window = Fusion.New "ScreenGui" {
+        Name = "Confirmation",
+        Parent = game.CoreGui,
+        [Fusion.Children] = {
+            Fusion.New "Frame" {
+                Name = "MainFrame",
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+                Position = UDim2.new(0.5, 0, 0.5, 0),
+                Size = UDim2.new(0, 602, 0, 673),
+                Visible = Fusion.Computed(function()
+                    return windowVisible:get()
+                end),
+                [Fusion.Children] = {
+                    Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                    Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                    Fusion.New "Frame" {
+                        Name = "TopBar",
+                        BackgroundColor3 = Color3.fromRGB(45, 45, 48),
+                        Size = UDim2.new(1, 0, 0, 50),
+                        [Fusion.Children] = {
+                            Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                            Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                            Fusion.New "TextButton" {
+                                Name = "CloseButton",
+                                Text = "X",
+                                Font = Enum.Font.GothamBold,
+                                TextColor3 = Color3.fromRGB(255, 255, 255),
+                                TextSize = 24,
+                                BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+                                Position = UDim2.new(1, -45, 0, 5),
+                                Size = UDim2.new(0, 40, 0, 40),
+                                [Fusion.Children] = {
+                                    Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                    Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                },
+                                [Fusion.OnEvent "MouseButton1Click"] = function()
+                                    windowVisible:set(false)
+                                end,
+                            },
+                            Fusion.New "TextButton" {
+                                Name = "MinimizeButton",
+                                Text = "-",
+                                Font = Enum.Font.GothamBold,
+                                TextColor3 = Color3.fromRGB(255, 255, 
+
+255),
+                                TextSize = 24,
+                                BackgroundColor3 = Color3.fromRGB(60, 60, 60),
+                                Position = UDim2.new(1, -90, 0, 5),
+                                Size = UDim2.new(0, 40, 0, 40),
+                                [Fusion.Children] = {
+                                    Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                    Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                },
+                                [Fusion.OnEvent "MouseButton1Click"] = function()
+                                    windowVisible:set(not windowVisible:get())
+                                end,
+                            },
+                            Fusion.New "TextLabel" {
+                                Name = "Title",
+                                Text = title,
+                                Font = Enum.Font.GothamBold,
+                                TextColor3 = Color3.fromRGB(255, 255, 255),
+                                TextSize = 24,
+                                BackgroundTransparency = 1,
+                                Size = UDim2.new(0.8, 0, 1, 0),
+                                TextXAlignment = Enum.TextXAlignment.Left,
+                                Position = UDim2.new(0.05, 0, 0, 0),
+                            },
+                        },
+                    },
+                    Fusion.New "ScrollingFrame" {
+                        Name = "TabHolder",
+                        BackgroundColor3 = Color3.fromRGB(45, 45, 48),
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0.025, 0, 0.0933333337, 0),
+                        Size = UDim2.new(0.95, 0, 0.0616666675, 0),
+                        CanvasSize = UDim2.new(0, 0, 0, 0),
+                        ScrollBarThickness = 0,
+                        AutomaticCanvasSize = Enum.AutomaticSize.X,
+                        [Fusion.Children] = {
+                            Fusion.New "UIListLayout" {
+                                FillDirection = Enum.FillDirection.Horizontal,
+                                HorizontalAlignment = Enum.HorizontalAlignment.Left,
+                                Padding = UDim.new(0, 5),
+                            },
+                            Fusion.New "UIPadding" {
+                                PaddingTop = UDim.new(0, 10),
+                                PaddingBottom = UDim.new(0, 10),
+                                PaddingLeft = UDim.new(0, 10),
+                                PaddingRight = UDim.new(0, 10),
+                            },
+                            Fusion.New "TextButton" {
+                                Text = "Main Tab",
+                                Font = Enum.Font.FredokaOne,
+                                TextColor3 = Color3.fromRGB(255, 255, 255),
+                                TextSize = 24,
+                                BackgroundColor3 = Color3.fromRGB(48, 48, 53),
+                                Size = UDim2.new(0, 100, 0, 30),
+                                [Fusion.Children] = {
+                                    Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                                    Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                                },
+                                [Fusion.OnEvent "MouseButton1Click"] = function()
+                                    for _, child in ipairs(window.MainFrame.ContentHolder:GetChildren()) do
+                                        if child:IsA("Frame") then
+                                            child.Visible = false
+                                        end
+                                    end
+                                    window.MainFrame.ContentHolder.MainTab_Content.Visible = true
+                                end,
+                            },
+                        },
+                    },
+                    Fusion.New "Frame" {
+                        Name = "ContentHolder",
+                        BackgroundColor3 = Color3.fromRGB(30, 30, 30),
+                        BackgroundTransparency = 1,
+                        Position = UDim2.new(0.0250000004, 0, 0.200000003, 0),
+                        Size = UDim2.new(0.935000002, 0, 0.800000012, 0),
+                        [Fusion.Children] = {
+                            Fusion.New "UICorner" { CornerRadius = UDim.new(0, 10) },
+                            Fusion.New "UIStroke" { Color = Color3.fromRGB(0, 0, 0), Thickness = 2 },
+                            createUIComponents(),
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+    return window
+end
+
+return UILibrary
